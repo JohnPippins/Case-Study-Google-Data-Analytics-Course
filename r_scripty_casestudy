@@ -1,0 +1,95 @@
+##loading in useful libraries.
+library("tidyverse")
+library("dplyr")
+library("janitor")
+library("skimr")
+library("here")
+library("ggplot2")
+library("patchwork")
+#disabling scientific notation.
+options(scipen = 100)
+
+##loading in data that I think might be useful.
+daily_activity = read.csv("dailyActivity_merged.csv")
+daily_calories = read.csv("dailyCalories_merged.csv")
+daily_steps = read.csv("dailySteps_merged.csv")
+sleep_info = read.csv("sleepDay_merged.csv")
+
+##Getting an idea of how data is stored and if there are any discrepancies.
+
+head(daily_activity)
+head(daily_calories)
+head(sleep_info)
+head(daily_steps)
+
+##Date/Time is formatted differently in each data set.
+sleep_info = separate(sleep_info,SleepDay,c("Date","Time","AM/PM"), sep = " ")
+daily_calories = rename(daily_calories, Date = ActivityDay)
+daily_activity = rename(daily_activity, Date = ActivityDate)
+daily_steps = rename(daily_steps, Date = ActivityDay)
+colnames(daily_activity)
+colnames(daily_calories)
+colnames(sleep_info)
+colnames(daily_steps)
+
+##plotting data to see any trends in Daily Wear
+ggplot(data = daily_activity)+
+  geom_point(mapping = aes(x=Date,y=Calories))+
+  facet_wrap(~Id)+
+  theme(
+    axis.title.y=element_text(size=18), 
+    axis.title.x=element_text(size=18),
+    axis.text.x=element_text(angle=45, size=10)
+  )+
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))
+#can see that wear is pretty steady, there are certain users that did not log steps/calories for entirety of study
+
+ggplot(data = daily_steps)+
+  geom_point(mapping = aes(x=Date,y=StepTotal))+
+  facet_wrap(~Id)+
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))
+
+#merging daily_steps and daily_calories for easier statistical analysis.
+merged_steps_calories = full_join(daily_steps,daily_calories)
+
+plot1 = ggplot(data = merged_steps_calories)+
+  geom_point(mapping = aes(x=Date,y=Calories), size = .1)+
+  facet_wrap(~Id)+
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))
+
+plot2 = ggplot(data = Merged_steps_calories)+
+  geom_point(mapping = aes(x=Date, y=StepTotal), size = .1)+
+  facet_wrap(~Id)+
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))
+
+plot1 + plot2
+
+## Now going to plot StepTotal vs Calories
+
+ggplot(data = Merged_steps_calories)+
+  geom_jitter(mapping = aes(x = StepTotal, y = Calories, color = Id))
+  
+## Can also determine if statistical significance between steptotal and calories
+
+cor(Merged_steps_calories$StepTotal,Merged_steps_calories$Calories)
+
+
+##Can see there is a correlation between Calories and StepTotal, need to get rid of outliers.
+##Using summarize to find outliers in data
+
+Merged_steps_calories%>%
+  select(StepTotal,Calories)%>%
+  summary()
+
+##We can see major outliers in StepTotal that might be skewing results, and can also see results for zero, which means they did not record or did not use smartwear.
+
+#correcting for major outliers
+
+corrected_data = subset(Merged_steps_calories, StepTotal < 30000 & StepTotal > 0 & Calories > 0)
+
+corrected_data%>%
+  select(StepTotal,Calories)%>%
+  summary()
+
+ggplot(data = corrected_data)+
+  geom_jitter(mapping = aes(x = StepTotal, y = Calories, color = Id))
